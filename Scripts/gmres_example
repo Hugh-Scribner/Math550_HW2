@@ -1,0 +1,181 @@
+"""
+3D Poisson problem on (0, 2*pi)^3 with homogeneous Dirichlet BCs, solved with
+(1) a sparse direct solve and (2) GMRES, using either an assembled sparse
+Laplacian or a matrix-free mat-vec (plain Python, numba on the CPU, or numba
+on a CUDA GPU). Python port of Lap_3D.m.
+​
+Requires: numpy, scipy, numba, and for the GPU parts numba-cuda, cupy and an
+NVIDIA GPU.
+"""
+import sys
+import time
+import warnings
+​
+import numpy as np
+import scipy.sparse as sp
+from scipy.sparse.linalg import gmres, spsolve, LinearOperator
+import matplotlib.pyplot as plt
+from numba import njit, prange, cuda
+import cupy as cp
+from cupyx.scipy.sparse.linalg import gmres as gmres_gpu, LinearOperator as LinearOperatorGPU
+​
+# CuPy's gmres calls numpy.linalg.lstsq without `rcond`, which makes NumPy < 2.0
+# print a harmless FutureWarning on every restart cycle; silence only that message.
+warnings.filterwarnings("ignore", message="`rcond` parameter will change", category=FutureWarning)
+​
+DIVIDER = "+" * 45   # printed between the solves
+
+def main():
+    N = 128 #128 #64 #32  # try 128
+    verbose = True  # True: GMRES prints the iteration number and relative residual as it runs
+    slow_only = False
+    x = np.linspace(0, 2 * np.pi, N + 2)[1:-1]    # drop the two boundary points
+    dx = x[1] - x[0]
+​
+    # GMRES settings: relative residual tol, restart every `restart` iterations,
+    # at most `maxit` restart cycles (in SciPy, maxiter counts restart cycles)
+    restart = 20
+    tol = 0.1 * (0.1 * dx * dx)      # try 1e-14
+    maxit = 100
+​
+    # 1D second-difference matrix (Dirichlet)
+    D2 = sp.diags([1.0, -2.0, 1.0], [-1, 0, 1], shape=(N, N)) / dx**2
+    In = sp.identity(N, format="csr")
+​
+    t = time.perf_counter()
+    Lap = (sp.kron(In, sp.kron(In, D2)) + sp.kron(In, sp.kron(D2, In))
+           + sp.kron(sp.kron(D2, In), In)).tocsr()
+    print(f"building Lap took {time.perf_counter() - t:.3f} s")
+​
+    #if N <= 32:
+    #    plot_sparsity(Lap, N)
+​
+    t = time.perf_counter()
+    X, Y, Z = np.meshgrid(x, x, x, indexing="ij")
+    print(f"meshgrid took {time.perf_counter() - t:.3f} s")
+​
+    t = time.perf_counter()
+    sx, sy, sz = np.sin(X), np.sin(Y), np.sin(Z)
+    esx = np.exp(sx * sy * sz)
+    f = (-3.0 * sx * sy * sz * esx
+         + sx**2 * sy**2 * np.cos(Z)**2 * esx
+         + sx**2 * sz**2 * np.cos(Y)**2 * esx
+         + sz**2 * sy**2 * np.cos(X)**2 * esx)
+    u_exact = esx - 1
+    print(f"RHS and exact solution took {time.perf_counter() - t:.3f} s")
+​
+    # -------------------------------------------------------- sparse direct solve
+    # SuperLU sparse LU; the minimum-degree ordering on A^T + A suits this
+    # symmetric matrix. Memory and time grow very fast with N in 3D.
+    if N <= 32:
+        t = time.perf_counter()
+        u_direct = spsolve(Lap.tocsc(), f.ravel(), permc_spec="MMD_AT_PLUS_A")
+        print(f"direct solve took {time.perf_counter() - t:.3f} s")
+        print(f"direct relative error: {rel_l2(u_exact, u_direct):.6g}")
+        print(DIVIDER)
+​
+    # -------------------------------------------------------- sparse matrix GMRES
+    gmres_solve(Lap, f, u_exact, tol, restart, maxit, "sparse", verbose)
+    print(DIVIDER)
+​
+    # -------------------------------------------------------- matrix-free GMRES, Python loops
+    if N <= 32:  # Python loops are very slow for N > 32
+        MatVec = LinearOperator((N**3, N**3), matvec=lambda v: apply_lap(v, dx, N), dtype=float)
+        gmres_solve(MatVec, f, u_exact, tol, restart, maxit, "python mat vec", verbose)
+        print(DIVIDER)
+​
+    if slow_only:
+        sys.exit()
+    # -------------------------------------------------------- matrix-free GMRES, numba (CPU)
+    t = time.perf_counter()
+    apply_lap_numba(f.ravel(), dx, N)          # first call compiles; don't count it below
+    print(f"numba compile took {time.perf_counter() - t:.3f} s")
+​
+    MatVec_numba = LinearOperator((N**3, N**3), matvec=lambda v: apply_lap_numba(v, dx, N),
+                                  dtype=float)
+    gmres_solve(MatVec_numba, f, u_exact, tol, restart, maxit, "numba mat vec", verbose)
+    print(DIVIDER)
+​
+    # -------------------------------------------------------- matrix-free GMRES, numba CUDA (GPU)
+    if cuda.is_available():
+        t = time.perf_counter()
+        apply_lap_cuda(f.ravel(), dx, N)       # first call compiles the kernel
+        print(f"CUDA compile took {time.perf_counter() - t:.3f} s")
+​
+        MatVec_cuda = LinearOperator((N**3, N**3), matvec=lambda v: apply_lap_cuda(v, dx, N),
+                                     dtype=float)
+        gmres_solve(MatVec_cuda, f, u_exact, tol, restart, maxit, "Claude's very dumb and bad CUDA", verbose)
+        print(DIVIDER)
+​
+        # ---------------------------------------------------- GMRES entirely on the GPU (CuPy)
+        # f is copied to the GPU once, GMRES and every mat-vec run on the GPU, and
+        # u is copied back once at the end (see gmres_solve_gpu).
+        MatVec_gpu = LinearOperatorGPU((N**3, N**3), dtype=float,
+                                       matvec=lambda v: apply_lap_cuda_device(v, dx, N))
+​
+        t = time.perf_counter()
+        gmres_gpu(MatVec_gpu, cp.asarray(f.ravel()), restart=restart, maxiter=restart)
+        cp.cuda.Device().synchronize()
+        print(f"CuPy warm-up (compiles CuPy's kernels) took {time.perf_counter() - t:.3f} s")
+​
+        gmres_solve_gpu(MatVec_gpu, f, u_exact, tol, restart, maxit, "GPU-resident CUDA", verbose)
+        print(DIVIDER)
+    else:
+        print("no CUDA GPU found; skipping the CUDA mat vecs")
+
+def apply_lap(u, dx, N):
+    """7-point Laplacian with zero Dirichlet BCs, applied without forming a matrix.
+
+    Direct translation of Apply_Lap.m (Python indices run 0..N-1).
+    """
+    u = u.reshape((N, N, N))  # reshape from vector to 3D array
+    y = np.zeros_like(u)      # initialize output
+    for i in range(N):
+        for j in range(N):
+            for k in range(N):
+                u_E = 0.0
+                u_W = 0.0
+                u_N = 0.0
+                u_S = 0.0
+                u_T = 0.0
+                u_B = 0.0
+                u_C = u[i, j, k]
+                if i > 0:     u_W = u[i - 1, j, k]
+                if i < N - 1: u_E = u[i + 1, j, k]
+                if j > 0:     u_S = u[i, j - 1, k]
+                if j < N - 1: u_N = u[i, j + 1, k]
+                if k > 0:     u_B = u[i, j, k - 1]
+                if k < N - 1: u_T = u[i, j, k + 1]
+                y[i, j, k] = (1 / dx**2) * (u_W + u_E +
+                                            u_S + u_N +
+                                            u_T + u_B +
+                                            -6.0 * u_C)
+    return y.ravel()
+
+def gmres_solve(A, f, u_exact, tol, restart, maxit, label, verbose=False):
+    """Time a GMRES solve of A u = f; print the iteration count, time and relative error."""
+    it = IterCounter(verbose)        # SciPy calls back once per inner iteration
+    t = time.perf_counter()
+    u, flag = gmres(A, f.ravel(), rtol=tol, atol=0.0, restart=restart,
+                    maxiter=maxit, callback=it, callback_type="pr_norm")
+    print(f"{label} GMRES: {it.n} iterations (flag={flag}), took {time.perf_counter() - t:.3f} s")
+    print(f"{label} relative error: {rel_l2(u_exact, u):.6g}")
+    return u
+
+class IterCounter:
+    """GMRES callback: counts iterations (SciPy doesn't return ITER like MATLAB)
+    and, if verbose, prints the iteration number and relative residual ||r||/||f||.
+    `step` is the number of iterations per callback: 1 for SciPy, `restart` for
+    CuPy (which calls back once per restart cycle)."""
+    def __init__(self, verbose=False, step=1):
+        self.n = 0
+        self.verbose = verbose
+        self.step = step
+        ​
+    def __call__(self, rel_res):
+        self.n += self.step
+        if self.verbose:
+            print(f"    iteration {self.n:5d}: relative residual {float(rel_res):.3e}")
+
+if __name__ == "__main__":
+    main()
