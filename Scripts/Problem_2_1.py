@@ -93,7 +93,7 @@ def convTest(mesh_range, num_trials, exact_sol, num_Operator, filepath = 'Images
 def main():
 
     # parameters
-    N = 10
+    N = 40
     bounds = [0,np.pi]
     f = lambda x,y : -8.0 * np.sin(2.0*y) * np.cos(2.0*x)
     solution = lambda x,y : np.cos(2.0*x)*np.sin(2.0*y)
