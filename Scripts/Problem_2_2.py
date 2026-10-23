@@ -161,7 +161,7 @@ def main():
     it = utils.IterCounter(verbose)
 
     #Sovle
-    sol,exit_code = gmres(mat_vec, b.flatten(), callback=it)
+    sol,exit_code = gmres(mat_vec, b.flatten(), rtol=1e-05, restart=20, maxiter=1000, callback=it)
 
     # Plot solution and Error
     u_approx = processSolution(sol, X, Y, N_FD, ib)
