@@ -24,8 +24,8 @@ class IterCounter:
 ##############################################################################################################################################################################################
 def getCircle(N, center, r=1):
     theta = np.linspace(0, 2.0*np.pi, N, endpoint=False)
-    x = center[0] + np.cos(theta)
-    y = center[1] + np.sin(theta)
+    x = center[0] + r*np.cos(theta)
+    y = center[1] + r*np.sin(theta)
     points = np.vstack((x,y))
     return points
 

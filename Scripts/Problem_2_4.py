@@ -80,7 +80,7 @@ def imBoundSolver(N_FD, bounds, center, f, g, verbose=False, N_ib = None, tol =1
     x = x[1:-1] # truncate x to not include BCs
     dx = x[1]-x[0]
     if N_ib is None:
-        N_ib = np.floor(2.0*np.pi/dx).astype(int)
+        N_ib = np.floor(2.0*np.pi*r/dx).astype(int)
         if verbose:
             print(f"N_ib is {N_ib}")
     X,Y = np.meshgrid(x,x, indexing="xy")
@@ -168,7 +168,7 @@ def main():
     frames = fps * seconds
     # endpoint=False so the last frame doesn't duplicate the first (seamless loop)
     theta = np.linspace(0, seconds/loop_time * 2.0*np.pi, frames, endpoint=False)
-
+    center = [0,0]
     f = lambda x, y: x*0
     g = lambda x, y: np.cos(2.0*x)*np.sin(2.0*y)
     colormap = "inferno"
@@ -179,8 +179,8 @@ def main():
     # Pass 1: solve every frame (store only u and the node coordinates, not the big Gs array)
     results = []
     for i in range(frames):
-        center = [np.cos(theta[i]), np.sin(theta[i])]
-        sol = imBoundSolver(N_FD, bounds, center, f, g, verbose=False, tol=1e-5)
+        radius = .5*np.sin(theta[i]) + 1
+        sol = imBoundSolver(N_FD, bounds, center, f, g, verbose=False, tol=1e-5, r = radius)
         results.append((sol["solution"], sol["ImBound"].nodes.copy(), center))
         print(f"solved {i+1}/{frames}")
     X, Y = sol["xgrid"], sol["ygrid"]
@@ -194,7 +194,7 @@ def main():
         plot_results(X, Y, u, nodes, center, colormap, vlim=vlim, save_path=path)
         print(f"rendered {i+1}/{frames}")
 
-    make_movie(frame_dir, os.path.join("Images", "movie.mp4"), fps)
+    make_movie(frame_dir, os.path.join("Images", "Radium_Movie.mp4"), fps)
     return 0
 
 if __name__ == "__main__":
