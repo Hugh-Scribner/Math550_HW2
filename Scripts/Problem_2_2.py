@@ -162,7 +162,7 @@ def main():
     g = lambda x,y : np.cos(2.0*x)*np.sin(2.0*y)
     solution = lambda x,y : np.cos(2.0*x)*np.sin(2.0*y)
     verbosity = True
-    colormap = "viridis"
+    colormap = "inferno"
 
     sol = imBoundSolver(N_FD, bounds, center, f, g, verbose=True, tol=1e-5)
 
@@ -176,7 +176,7 @@ def main():
 
     # Get Error Plot 
     O_IM = lambda N_FD: imBoundSolver(N_FD, bounds, center, f, g, tol = 1e-5)
-    utils.convTest([10, 350], 8, solution, O_IM)
+    utils.convTest([10, 300], 8, solution, O_IM)
 
     return 0
 

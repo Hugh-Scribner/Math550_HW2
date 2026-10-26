@@ -98,7 +98,7 @@ def main():
     f = lambda x,y : -8.0 * np.sin(2.0*y) * np.cos(2.0*x)
     solution = lambda x,y : np.cos(2.0*x)*np.sin(2.0*y)
     verbose = True
-    colormap = "viridis"
+    colormap = "inferno"
 
     # Get Numerical Solution
     sol = lapSolver(N, bounds, f, verbose)
