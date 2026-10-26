@@ -185,8 +185,7 @@ def main():
     # Plot solution and Error
     u_exact = solution(X,Y)
 
-    plot_results(X, Y, u_approx, u_exact, sol["ImBound"], center, colormap)
-
+    plot_results(X, Y, u_approx, u_exact, sol["ImBound"], center, colormap, outdir="Images\\problem_3")
     return 0
 
 if __name__ == "__main__":

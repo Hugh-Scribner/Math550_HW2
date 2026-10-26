@@ -20,7 +20,7 @@ class IterCounter:
         if self.verbose:
             print(f"    iteration {self.n:5d}: relative residual {float(rel_res):.3e}")
 
-#@njit(parallel=True)
+@njit(parallel=True, cache = True, fastmath=True)
 def applyLap(u, N, dx):
     u = u.reshape((N, N))
     y = np.zeros_like(u)
@@ -51,7 +51,7 @@ def lapSolver(N, bounds, f, verbose):
     b[:, -1] -= 0 / dx**2# right BC
     
     it = IterCounter(verbose)
-    u_approx,exit_code = gmres(mat_vec, b.flatten(), callback=it)
+    u_approx,exit_code = gmres(mat_vec, b.flatten(), restart = 200, callback=it) 
     u_approx = u_approx.reshape(N,N)
     
     result = {
@@ -121,11 +121,11 @@ def main():
         ax.set_ylabel("y")
         ax.xaxis.set_major_locator(MultipleLocator(1))
     fig1.colorbar(im0, ax=ax1, orientation='vertical', fraction=0.046, pad=0.04,  shrink=0.6)
-    plt.savefig("Images\\problem4_1.png", bbox_inches='tight')
+    plt.savefig("Images\\problem_1\\problem4_1.png", bbox_inches='tight')
 
     # Get Error Plot
     O_lap = lambda N: lapSolver(N, bounds, f, False)
-    convTest([10, 200], 5, solution, O_lap)
+    convTest([10, 200], 5, solution, O_lap, filepath = 'Images\\problem_1\\convergence_plot_4_1.png')
 
     return 0
 

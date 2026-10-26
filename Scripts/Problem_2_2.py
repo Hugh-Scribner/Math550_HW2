@@ -172,11 +172,11 @@ def main():
     # Plot solution and Error
     u_exact = solution(X,Y)
 
-    plot_results(X, Y, u_approx, u_exact, sol["ImBound"], center, colormap)
+    plot_results(X, Y, u_approx, u_exact, sol["ImBound"], center, colormap, outdir="Images\\problem_2")
 
     # Get Error Plot 
     O_IM = lambda N_FD: imBoundSolver(N_FD, bounds, center, f, g, tol = 1e-5)
-    utils.convTest([10, 300], 8, solution, O_IM)
+    utils.convTest([10, 200], 8, solution, O_IM, filepath = 'Images\\problem_2\\convergence_plot_4_2.png')
 
     return 0
 
