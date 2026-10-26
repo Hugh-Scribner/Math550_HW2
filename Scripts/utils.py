@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
 
 ##############################################################################################################################################################################################
-# Objects for outputs
+# Objects for outputs #
 ##############################################################################################################################################################################################
 class IterCounter:
     """GMRES callback: counts iterations (SciPy doesn't return ITER like MATLAB)
@@ -20,7 +20,7 @@ class IterCounter:
             print(f"    iteration {self.n:5d}: relative residual {float(rel_res):.3e}")
 
 ##############################################################################################################################################################################################
-# Geometry
+# Geometry #
 ##############################################################################################################################################################################################
 def getCircle(N, center, r=1):
     theta = np.linspace(0, 2.0*np.pi, N, endpoint=False)
@@ -30,7 +30,7 @@ def getCircle(N, center, r=1):
     return points
 
 ##############################################################################################################################################################################################
-# Plotting
+# Plotting #
 ##############################################################################################################################################################################################
 def rel_error(u_exact, u_approx):
     L_2_error = np.linalg.norm(u_exact-u_approx, ord = 'fro')/np.linalg.norm(u_exact, ord = 'fro')
@@ -45,12 +45,11 @@ def convTest(mesh_range, num_trials, exact_sol, num_Operator, filepath = 'Images
         u_approx = result["solution"]
         xx, yy = result["xgrid"], result["ygrid"]
         u_exact = exact_sol(xx,yy)
-        
         L_2[i] = rel_error(u_exact, u_approx) #calculate relative errors for increasingly finer meshes.
     fig3 = plt.figure(3)
     ax3 = plt.axes()
     plt.rcParams['lines.linewidth'] = 3 
-    plt.loglog(meshes, 1/meshes, label = r"$\mathcal{O}(\Delta x)$ Reference", color = 'black', linestyle = '--')
+    plt.loglog(meshes, 1/meshes**1.5, label = r"$\mathcal{O}(\Delta x^{1.5})$ Reference", color = 'black', linestyle = '--')
     plt.loglog(meshes, 1/meshes**2, label = r"$\mathcal{O}(\Delta x^2)$ Reference", color = 'black')
     plt.loglog(meshes, L_2, label = "Rel Error", color = 'red')
     plt.legend()

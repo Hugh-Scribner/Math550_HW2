@@ -125,7 +125,7 @@ def main():
 
     # Get Error Plot
     O_lap = lambda N: lapSolver(N, bounds, f, False)
-    convTest([10, 100], 3, solution, O_lap)
+    convTest([10, 200], 5, solution, O_lap)
 
     return 0
 
