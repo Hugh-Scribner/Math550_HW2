@@ -144,7 +144,7 @@ def plot_results(X, Y, u_approx, u_exact, ib, center, colormap="viridis", outdir
     ax.set_title("Numerical solution")
     ax.legend(loc="upper left")
     fig.colorbar(surf, shrink=0.6, pad=0.1)
-    fig.savefig(os.path.join(outdir, "surface.png"), dpi=200)
+    fig.savefig(os.path.join(outdir, "surface_many_grid points.png"), dpi=200)
 
     plt.show()
 
@@ -177,7 +177,7 @@ def main():
     verbosity = True
     colormap = "inferno"
 
-    sol = imBoundSolver(N_FD, bounds, center, f, g,verbose=True, tol=1e-5)
+    sol = imBoundSolver(N_FD, bounds, center, f, g,verbose=True, tol=1e-5, N_ib = 10000)
 
     u_approx = sol["solution"]
     X, Y = sol["xgrid"], sol["ygrid"]
