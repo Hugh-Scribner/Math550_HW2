@@ -141,7 +141,17 @@
                     \caption{Numerical solution to the near minimal surface problem on a mesh with N = 10000.}
             \end{centering}
         \end{figure}
-        
+
+    We can play with the number of nodes used to represent the immersed boundary. Notably, assembling each nodes contribution to the corresponding linear system is by far the most expensive part of solving this problem aside from the linear solve, so adding a large number of nodes severly impacts the run time of the simulation. Likewise, if we use too few nodes, we may find that the boundary is not accurately enforced on the problem. To test this I ran the code with 1/10th of the nodes as the previous simulation As you can see, the peak of the minimal surface is now bifurcated, so we had too few nodes to get a sensible solution.
+
+        \begin{figure}[H]
+            \begin{centering}
+                \centering
+                    \includegraphics[scale=.75]{Images/problem_3/surface.png}
+                    \caption{Numerical solution to the near minimal surface problem on a mesh with N = 10000.}
+            \end{centering}
+        \end{figure}
+
 \newpage
 \section{Problem 4}
  \begin{tcolorbox}
